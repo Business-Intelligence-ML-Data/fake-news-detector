@@ -1,4 +1,4 @@
-mport pandas as pd
+import pandas as pd
 
 
 df = pd.read_csv('./fake_news_spanish.csv', delimiter=';', encoding='utf-8')
