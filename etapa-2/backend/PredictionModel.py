@@ -9,4 +9,7 @@ class Model:
 
     def make_predictions(self, data):
         result = self.model.predict(data)
-        return result    
+        return result 
+    
+    def predict_proba(self, X):
+        return self.model.predict_proba(X)   

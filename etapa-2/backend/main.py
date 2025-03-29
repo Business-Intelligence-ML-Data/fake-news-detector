@@ -33,15 +33,31 @@ def read_item(item_id: int, q: Optional[str] = None):
 
 
 @app.post("/predict")
-def make_predictions(dataModel: DataModel):
-   df = pd.DataFrame(dataModel.dict(), columns=dataModel.dict().keys(), index=[0])
-   df.columns = dataModel.columns()
+def make_predictions(dataModels: List[DataModel]):
+
+   df = pd.DataFrame([data.dict() for data in dataModels])
+    
+   if len(dataModels) > 0:
+        df.columns = dataModels[0].columns()
+    
    model = Model(df)
    result = model.make_predictions(df)
-   if isinstance(result, np.ndarray):
-    result = result.tolist()
-   return {"prediction": result}
 
+   probabilities = model.predict_proba(df)
+    
+   if isinstance(result, np.ndarray):
+        result = result.tolist()
+    
+   confidence = [float(max(prob)) for prob in probabilities]
+    
+   response = []
+   for data, pred, conf in zip(dataModels, result, confidence):
+        data_dict = data.dict()
+        data_dict["prediction"] = pred
+        data_dict["confidence"] = round(conf, 2)
+        response.append(data_dict)
+    
+   return response
 
 MODEL_PATH = "pipeline_nb.pkl"
 
@@ -72,7 +88,6 @@ def retrain(newData: List[NewRetrain]):
         ('nb', MultinomialNB(alpha=2.0))
     ])
 
-    # Entrenar nuevamente el pipeline
    new_pipeline.fit(X_new, y_new)
 
    predictions = new_pipeline.predict(X_new)
@@ -83,7 +98,7 @@ def retrain(newData: List[NewRetrain]):
       "recall": recall_score(y_new, predictions),
       "f1-score": f1_score(y_new, predictions)
    }
-    # Guardar el modelo actualizado
+
    dump(new_pipeline, MODEL_PATH)
 
    return {"message": "Modelo reentrenado exitosamente", "new_metrics":metrics}
