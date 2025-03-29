@@ -52,11 +52,11 @@ def make_predictions(dataModels: List[DataModel]):
     
    response = []
    for data, pred, conf in zip(dataModels, result, confidence):
-        data_dict = data.dict()
-        data_dict["prediction"] = pred
-        data_dict["confidence"] = round(conf, 2)
-        response.append(data_dict)
-    
+     data_dict = data.dict()
+     data_dict["prediction"] = pred
+     data_dict["confidence"] = round(conf, 2)
+     response.append(data_dict)
+
    return response
 
 MODEL_PATH = "pipeline_nb.pkl"
@@ -68,8 +68,8 @@ def retrain(newData: List[NewRetrain]):
         raise HTTPException(status_code=400, detail="No se enviaron datos para reentrenar.")
    
    df = pd.DataFrame([item.dict() for item in newData])
-   X_new = df.drop(columns=["Etiqueta"])
-   y_new = df["Etiqueta"]
+   X_new = df.drop(columns=["Label"])
+   y_new = df["Label"]
 
 
    preprocessor = ColumnTransformer(
@@ -93,10 +93,10 @@ def retrain(newData: List[NewRetrain]):
    predictions = new_pipeline.predict(X_new)
 
    metrics = {
-      "accuracy": accuracy_score(y_new, predictions),
-      "precision": precision_score(y_new, predictions),
-      "recall": recall_score(y_new, predictions),
-      "f1-score": f1_score(y_new, predictions)
+     "accuracy": accuracy_score(y_new, predictions),
+     "precision": precision_score(y_new, predictions),
+     "recall": recall_score(y_new, predictions),
+     "f1-score": f1_score(y_new, predictions)
    }
 
    dump(new_pipeline, MODEL_PATH)

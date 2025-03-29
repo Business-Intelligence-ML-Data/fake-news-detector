@@ -1,16 +1,18 @@
 from pydantic import BaseModel
 
 class DataModel(BaseModel):
+    ID: str
     Titulo : str
     Descripcion: str
     Fecha: str
 
     def columns(self):
-        return ["Titulo", "Descripcion", "Fecha"]
+        return ["ID", "Titulo", "Descripcion", "Fecha"]
     
 
 class NewRetrain(BaseModel):
-    Titulo: str
+    ID: str 
+    Titulo: str | None = None
     Descripcion: str
     Fecha: str
-    Etiqueta: int
+    Label: int

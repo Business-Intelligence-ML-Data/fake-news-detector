@@ -4,7 +4,7 @@ from personalizedFunctions import replace_nan_with_description, replace_nan_with
 
 
 class Model:
-    def __init__(self, columns):
+    def _init_(self, columns):
         self.model = load("pipeline_nb.pkl")
 
     def make_predictions(self, data):
@@ -12,4 +12,4 @@ class Model:
         return result 
     
     def predict_proba(self, X):
-        return self.model.predict_proba(X)   
+        return self.model.predict_proba(X)
