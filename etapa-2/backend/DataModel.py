@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 class DataModel(BaseModel):
-    ID: str
+    ID: str | None = 'ID'
     Titulo : str
     Descripcion: str
     Fecha: str
