@@ -25,12 +25,24 @@ interface Prediction {
   confidence: number;
 }
 
+interface RetrainResponse {
+  message: string;
+  new_metrics: {
+    accuracy: number;
+    precision: number;
+    recall: number;
+    "f1-score": number;
+  }
+}
+
 function App() {
-  // Estado para el loader y la respuesta del backend
+  // Estados para loader y respuesta de backend
   const [loading, setLoading] = useState(false);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [retrainLoading, setRetrainLoading] = useState(false);
+  const [retrainResult, setRetrainResult] = useState<RetrainResponse | null>(null);
 
-  // Formulario para verificar noticias (varios items)
+  // Formulario para verificar noticias
   const {
     control,
     register: registerNews,
@@ -50,16 +62,15 @@ function App() {
     name: "noticias"
   });
 
-  // Formulario para contribuir al sistema
+  // Formulario para contribuir
   const {
     register: registerContrib,
     handleSubmit: handleSubmitContrib,
     reset: resetContrib
   } = useForm<ContribForm>();
 
-  // Función que se ejecuta al enviar el formulario de verificación
+  // Función para la verificación de noticias
   const onSubmitNews: SubmitHandler<VerifyNewsForm> = async (data) => {
-    // Transformamos los datos para que coincidan con el formato del backend
     const payload = data.noticias.map(item => ({
       Titulo: item.titulo,
       Descripcion: item.descripcion,
@@ -72,18 +83,64 @@ function App() {
       console.log("Respuesta del backend:", response.data);
       setPredictions(response.data);
     } catch (error) {
-      console.error("Error en la petición:", error);
+      alert("Error en la petición: " + error);
     } finally {
       setLoading(false);
       resetNews();
     }
   };
 
+  // Función para procesar el CSV y enviar la data al endpoint de reentrenamiento
+  const processCSV = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      // Separamos el contenido por líneas y eliminamos líneas vacías
+      const rows = text.split('\n').filter((row) => row.trim() !== '');
+      if (rows.length === 0) return;
+      
+      // Extraemos el encabezado (primera línea)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const header = rows[0].split(';').map(col => col.trim());
+      
+      // Convertimos cada fila en un objeto
+      const data = rows.slice(1).map(row => {
+        const values = row.split(';').map(value => value.trim());
+        const objectToReturn = {
+          ID: (values[0] === null || values[0] === undefined || values[0] === '') ? 'ID' : values[0],
+          Titulo: (values[2] === null || values[2] === undefined || values[2] === '') ? null : (values[2] === null || values[2] === undefined || values[2] === '') ? null : values[2],
+          Descripcion: (values[3] === null || values[3] === undefined || values[3] === '') ? '' : values[3],
+          Fecha: (values[4] === null || values[4] === undefined || values[4] === '') ? '29/03/2025' : values[4],
+          Label: (values[1] === null || values[1] === undefined || values[1] === '' || isNaN(Number(values[1]))) ? 1 : Number(values[1]),
+        }
+        return objectToReturn;
+      });
+
+
+      
+      console.log('Datos parseados del CSV:', data);
+      
+      setRetrainLoading(true);
+      try {
+        const response = await axios.post('http://localhost:8000/retrain', data);
+        console.log("Respuesta del reentrenamiento:", response.data);
+        setRetrainResult(response.data);
+      } catch (error) {
+        alert("Error en el reentrenamiento: " + error);
+      } finally {
+        setRetrainLoading(false);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // Función que se ejecuta al enviar el formulario de contribución
   const onSubmitContrib: SubmitHandler<ContribForm> = (data) => {
-    console.log("Datos del formulario de contribución:", data);
-    // Aquí puedes hacer la llamada al backend para entrenar el sistema
-    resetContrib(); // Reinicia el formulario si lo deseas
+    if (data.archivo && data.archivo.length > 0) {
+      const file = data.archivo[0];
+      processCSV(file);
+    }
+    resetContrib();
   };
 
   return (
@@ -96,7 +153,7 @@ function App() {
         </h1>
       </header>
 
-      <main className=' h-screen bg-[#F5F5F5] overflow-y-scroll'>
+      <main className='h-screen bg-[#F5F5F5] overflow-y-scroll'>
         <div className='flex flex-row justify-center py-4 px-52 gap-14'>
           {/* Formulario para verificar noticias */}
           <form
@@ -105,7 +162,6 @@ function App() {
           >
             <h1 className='text-3xl font-bold h-20'>
               Detector de noticias falsas
-              {/* Botón para agregar otro bloque de inputs */}
               <button
                 type="button"
                 className="self-start mb-4 text-sm text-[#002452] hover:underline hover:cursor-pointer"
@@ -115,7 +171,6 @@ function App() {
               </button>
             </h1>
 
-            {/* Contenedor scrollable para múltiples inputs */}
             <div className='h-64 gap-4 flex flex-col overflow-y-scroll'>
               {fields.map((field, index) => (
                 <div key={field.id} className="border border-gray-200 p-4 rounded-md mb-4">
@@ -167,7 +222,6 @@ function App() {
                     )}
                   </div>
 
-                  {/* Botón para remover este bloque (si hay más de uno) */}
                   {fields.length > 1 && (
                     <button
                       type="button"
@@ -220,10 +274,9 @@ function App() {
           </form>
         </div>
 
-        {/* Sección para mostrar el skeleton loader o la tabla de resultados */}
+        {/* Sección para mostrar el loader o la tabla de resultados de verificación */}
         <section className="px-52 mt-8">
           {loading ? (
-            // Skeleton loader (puedes mejorar la animación o estilos según convenga)
             <div className="animate-pulse space-y-4">
               <div className="h-6 bg-gray-300 rounded"></div>
               <div className="h-6 bg-gray-300 rounded"></div>
@@ -248,10 +301,65 @@ function App() {
                         <td className="px-4 py-2 border">{item.Titulo}</td>
                         <td className="px-4 py-2 border">{item.Descripcion}</td>
                         <td className="px-4 py-2 border">{item.Fecha}</td>
-                        <td className="px-4 py-2 border">{item.prediction == 1 ? "Noticia falsa" : "Noticia verdadera"}</td>
-                        <td className="px-4 py-2 border">Este resultado tiene un {(item.confidence * 100).toFixed(0)}% de probabilidad de ser correcto</td>
+                        <td className="px-4 py-2 border">
+                          {item.prediction === 1 ? "Noticia falsa" : "Noticia verdadera"}
+                        </td>
+                        <td className="px-4 py-2 border">
+                          Este resultado tiene un {(item.confidence * 100).toFixed(0)}% de probabilidad de ser correcto
+                        </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          )}
+        </section>
+
+        {/* Sección para mostrar el loader o la tabla con resultados del reentrenamiento */}
+        <section className="px-52 mt-8">
+          {retrainLoading ? (
+            <div className="animate-pulse space-y-4">
+              <div className="h-6 bg-gray-300 rounded"></div>
+              <div className="h-6 bg-gray-300 rounded"></div>
+              <div className="h-6 bg-gray-300 rounded"></div>
+            </div>
+          ) : (
+            retrainResult && (
+              <div>
+                <h2 className="text-2xl font-bold mb-4">Resultados del reentrenamiento</h2>
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr className="bg-[#002452] text-white">
+                      <th className="px-4 py-2 border">Métrica</th>
+                      <th className="px-4 py-2 border">Descripción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="px-4 py-2 border">Precisión global</td>
+                      <td className="px-4 py-2 border">
+                        {`El modelo ahora clasifica correctamente el ${(retrainResult.new_metrics.accuracy * 100).toFixed(0)}% de las noticias.`}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2 border">Exactitud</td>
+                      <td className="px-4 py-2 border">
+                        {`Ahora, el ${(retrainResult.new_metrics.precision * 100).toFixed(0)}% de las noticias etiquetadas como falsas son realmente falsas.`}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2 border">Sensibilidad</td>
+                      <td className="px-4 py-2 border">
+                        {`El modelo reconoce correctamente el ${(retrainResult.new_metrics.recall * 100).toFixed(0)}% de las noticias verdaderas.`}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2 border">Balance F1</td>
+                      <td className="px-4 py-2 border">
+                        {`El equilibrio entre precisión y exhaustividad es de ${(retrainResult.new_metrics["f1-score"] * 100).toFixed(0)}%.`}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
